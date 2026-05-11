@@ -4,8 +4,6 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from fpdf import FPDF
-import tempfile
-import os
 from datetime import datetime
 
 # ==========================================
@@ -74,13 +72,13 @@ def calculate_stats(data_array):
         "outliers": outliers.tolist()
     }
 
-def create_pdf_report(title, datasets_info, fig=None):
+def create_pdf_report(title, datasets_info):
     pdf = FPDF()
     pdf.add_page()
     
     # --- HEADER BRANDING ---
     pdf.set_font("Arial", "B", 16)
-    pdf.set_text_color(0, 122, 255) # Màu xanh dương ED-ODYSSEY
+    pdf.set_text_color(0, 122, 255) # Màu xanh dương
     pdf.cell(0, 10, txt="ED-ODYSSEY ANALYTICS ENGINE", ln=True, align="C")
     
     pdf.set_font("Arial", "B", 14)
@@ -117,28 +115,6 @@ def create_pdf_report(title, datasets_info, fig=None):
         pdf.cell(0, 7, txt=f"Diem di biet (Outliers): {outliers_str}", ln=True)
         pdf.ln(5)
 
-    # --- CHÈN BIỂU ĐỒ ---
-    if fig is not None:
-        try:
-            # Lưu biểu đồ thành file ảnh tạm thời
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-                fig.write_image(tmpfile.name, engine="kaleido", width=800, height=400)
-                tmpfile_path = tmpfile.name
-            
-            # Sang trang mới cho biểu đồ để không bị cắt ngang
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 10, txt="Bieu do truc quan (Visualizations):", ln=True)
-            # Chèn ảnh vào PDF
-            pdf.image(tmpfile_path, x=10, w=190)
-            
-            # Xóa file ảnh tạm sau khi chèn xong
-            os.remove(tmpfile_path)
-        except Exception as e:
-            pdf.set_text_color(255, 0, 0)
-            pdf.cell(0, 10, txt="(Loi: Khong the tao anh bieu do. Vui long kiem tra thu vien 'kaleido')", ln=True)
-            pdf.set_text_color(0, 0, 0)
-        
     return bytes(pdf.output(dest='S').encode('latin-1'))
 
 # ==========================================
@@ -221,8 +197,7 @@ with tab1:
                     fig.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig, use_container_width=True, key="chart_single")
                 
-                # Truyền fig vào hàm tạo PDF
-                pdf_bytes = create_pdf_report("BAO CAO PHAN TICH DON NHOM", {"Dataset 1": stats}, fig)
+                pdf_bytes = create_pdf_report("BAO CAO PHAN TICH DON NHOM", {"Dataset 1": stats})
                 st.download_button("📥 Tải Báo Cáo PDF", data=pdf_bytes, file_name="ed_odyssey_single_report.pdf", 
                                    mime="application/pdf", key="dl_single", type="primary")
         except Exception as e:
@@ -288,9 +263,8 @@ with tab2:
                     fig_compare.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig_compare, use_container_width=True, key="chart_compare")
                 
-                # Truyền fig_compare vào hàm tạo PDF
                 pdf_bytes_compare = create_pdf_report("BAO CAO SO SANH (A/B ANALYSIS)", 
-                                                      {"Nhom A": stats_a, "Nhom B": stats_b}, fig_compare)
+                                                      {"Nhom A": stats_a, "Nhom B": stats_b})
                 st.download_button("📥 Tải Báo Cáo So Sánh", data=pdf_bytes_compare, 
                                    file_name="ed_odyssey_compare_report.pdf", mime="application/pdf", key="dl_compare", type="primary")
         except Exception as e:
