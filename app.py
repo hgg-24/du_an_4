@@ -30,26 +30,14 @@ def inject_custom_css():
             border: 1px solid #EAEAEA !important;
             padding: 0.5rem;
         }
-        /* Nút tải PDF nổi bật hơn */
+        /* Nút tải PDF nhỏ gọn và mượt mà hơn */
         .stDownloadButton > button {
-            background-color: #007AFF !important; 
-            color: #FFFFFF !important;
-            border-radius: 8px !important;
-            border: 2px solid #0056b3 !important;
-            padding: 10px 0px !important;
-            width: 100%;
+            border-radius: 6px !important;
             transition: all 0.3s ease;
         }
         .stDownloadButton > button:hover {
-            background-color: #0056b3 !important; 
-            box-shadow: 0 6px 15px rgba(0, 122, 255, 0.4) !important;
             transform: translateY(-2px);
-            color: #FFFFFF !important;
-        }
-        /* Làm to chữ bên trong nút */
-        .stDownloadButton > button p {
-            font-size: 1.1rem !important; 
-            font-weight: bold !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -161,130 +149,4 @@ with tab1:
 
     with col2_display:
         single_metrics_area = st.empty()
-        single_chart_area = st.empty()
-        
-        try:
-            data_str_list = [x.strip() for x in raw_single.replace("\n", ",").split(",") if x.strip()]
-            data_single = np.array([float(x) for x in data_str_list if x])
-            
-            if len(data_single) > 0:
-                stats = calculate_stats(data_single)
-                
-                # Hiển thị metrics thành 2 hàng
-                with single_metrics_area.container(border=True):
-                    st.markdown("**Các giá trị cốt lõi:**")
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("Trung bình", f"{stats['mean']:.2f}")
-                    m1.latex(r"\bar{x} = \frac{1}{n} \sum x_i")
-                    m2.metric("Trung vị", f"{stats['median']:.2f}")
-                    m2.latex(r"Q_2")
-                    m3.metric("Yếu vị (Mode)", f"{', '.join(map(lambda x: f'{x:g}', stats['mode']))}")
-                    m3.latex(r"M_o")
-                    m4.metric("Khoảng GT (Range)", f"{stats['range']:.2f}")
-                    m4.latex(r"R = Max - Min")
-
-                    st.divider()
-                    
-                    m5, m6, m7 = st.columns(3)
-                    m5.metric("Phương sai", f"{stats['var']:.2f}")
-                    m5.latex(r"\sigma^2 = \frac{\sum (x_i - \bar{x})^2}{n}")
-                    m6.metric("Độ lệch chuẩn", f"{stats['std']:.2f}")
-                    m6.latex(r"\sigma = \sqrt{\sigma^2}")
-                    m7.metric("Khoảng IQR", f"{stats['iqr']:.2f}")
-                    m7.latex(r"IQR = Q_3 - Q_1")
-
-                # Vẽ biểu đồ
-                with single_chart_area.container():
-                    df_single = pd.DataFrame(data_single, columns=["Value"])
-                    if plot_type == "Box Plot":
-                        fig = px.box(df_single, y="Value", points="all", title="Biểu đồ hộp & Outliers",
-                                     color_discrete_sequence=["#007AFF"])
-                    else:
-                        fig = px.histogram(df_single, x="Value", marginal="box", nbins=15,
-                                           title="Phân phối tần suất", color_discrete_sequence=["#007AFF"])
-                    
-                    fig.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
-                    st.plotly_chart(fig, use_container_width=True, key="chart_single")
-                
-                # Tải PDF - Nút đã được style lại
-                pdf_bytes = create_pdf_report("Phan tich don nhom", {"Dataset 1": stats})
-                st.download_button("📥 TẢI BÁO CÁO PDF ĐƠN NHÓM", data=pdf_bytes, file_name="ed_odyssey_single_report.pdf", 
-                                   mime="application/pdf", key="dl_single", type="primary", use_container_width=True)
-        except Exception as e:
-            single_chart_area.caption("Dữ liệu không hợp lệ. Vui lòng chỉ nhập các số.")
-
-# ------------------------------------------
-# TAB 2: SO SÁNH (A/B ANALYSIS)
-# ------------------------------------------
-with tab2:
-    col1_input, col2_display = st.columns([1.2, 2.8])
-    
-    with col1_input:
-        with st.container(border=True):
-            st.markdown("##### Nhóm A")
-            upload_a = st.file_uploader("CSV Nhóm A:", type=["csv"], key="file_a")
-            val_a = "5, 7, 8, 5, 6, 9, 7, 5"
-            if upload_a:
-                df_a = pd.read_csv(upload_a)
-                val_a = ", ".join(df_a.iloc[:, 0].dropna().astype(str).tolist())
-            raw_group_a = st.text_area("Dữ liệu Nhóm A:", value=val_a, height=100, key="input_group_a")
-
-            st.markdown("##### Nhóm B")
-            upload_b = st.file_uploader("CSV Nhóm B:", type=["csv"], key="file_b")
-            val_b = "3, 4, 12, 14, 5, 6, 8, 9"
-            if upload_b:
-                df_b = pd.read_csv(upload_b)
-                val_b = ", ".join(df_b.iloc[:, 0].dropna().astype(str).tolist())
-            raw_group_b = st.text_area("Dữ liệu Nhóm B:", value=val_b, height=100, key="input_group_b")
-
-    with col2_display:
-        compare_metrics_area = st.empty()
-        compare_chart_area = st.empty()
-        
-        try:
-            list_a = [x.strip() for x in raw_group_a.replace("\n", ",").split(",") if x.strip()]
-            list_b = [x.strip() for x in raw_group_b.replace("\n", ",").split(",") if x.strip()]
-            
-            if len(list_a) > 0 and len(list_b) > 0:
-                stats_a = calculate_stats(np.array([float(x) for x in list_a]))
-                stats_b = calculate_stats(np.array([float(x) for x in list_b]))
-                
-                # Hiển thị metrics so sánh
-                with compare_metrics_area.container(border=True):
-                    st.markdown("**So sánh các giá trị cốt lõi (Nhóm A làm gốc):**")
-                    c1, c2, c3, c4 = st.columns(4)
-                    
-                    c1.metric("Trung bình (A)", f"{stats_a['mean']:.2f}", 
-                              delta=f"{(stats_a['mean'] - stats_b['mean']):.2f} so với B", delta_color="inverse")
-                    c2.metric("Trung vị (A)", f"{stats_a['median']:.2f}", 
-                              delta=f"{(stats_a['median'] - stats_b['median']):.2f} so với B", delta_color="inverse")
-                    c3.metric("Phương sai (A)", f"{stats_a['var']:.2f}", 
-                              delta=f"{(stats_a['var'] - stats_b['var']):.2f} so với B", delta_color="inverse")
-                    c4.metric("Độ lệch chuẩn (A)", f"{stats_a['std']:.2f}", 
-                              delta=f"{(stats_a['std'] - stats_b['std']):.2f} so với B", delta_color="inverse")
-
-                # Vẽ biểu đồ
-                with compare_chart_area.container():
-                    df_a = pd.DataFrame({"Value": [float(x) for x in list_a], "Group": "Nhóm A"})
-                    df_b = pd.DataFrame({"Value": [float(x) for x in list_b], "Group": "Nhóm B"})
-                    df_compare = pd.concat([df_a, df_b])
-                    
-                    fig_compare = px.box(df_compare, x="Group", y="Value", color="Group", points="all",
-                                         color_discrete_sequence=["#007AFF", "#FF5E5E"],
-                                         title="So sánh phân phối & Mức độ phân tán (Box Plot)")
-                    fig_compare.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
-                    st.plotly_chart(fig_compare, use_container_width=True, key="chart_compare")
-                
-                # Tải PDF - Nút đã được style lại
-                pdf_bytes_compare = create_pdf_report("Phan tich so sanh (A/B Analysis)", 
-                                                      {"Nhom A": stats_a, "Nhom B": stats_b})
-                st.download_button("📥 TẢI BÁO CÁO SO SÁNH (PDF)", data=pdf_bytes_compare, 
-                                   file_name="ed_odyssey_compare_report.pdf", mime="application/pdf", key="dl_compare", type="primary", use_container_width=True)
-        except Exception as e:
-            compare_chart_area.caption("Dữ liệu không hợp lệ. Vui lòng kiểm tra lại định dạng dữ liệu đầu vào.")
-
-# ==========================================
-# 4. FOOTER
-# ==========================================
-st.markdown("---")
-st.caption("Trực quan hóa và hệ thống hóa bởi ED-ODYSSEY Analytics Engine.")
+        single_chart_area = st.empty
