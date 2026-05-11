@@ -5,6 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from fpdf import FPDF
 from datetime import datetime
+import os
+import urllib.request
 
 # ==========================================
 # 1. THIẾT LẬP TRANG & GIAO DIỆN CƠ BẢN (CSS)
@@ -24,9 +26,12 @@ def inject_custom_css():
             border: 1px solid #EAEAEA !important;
             padding: 0.5rem;
         }
+        /* Nút tải PDF nhỏ gọn */
         .stDownloadButton > button {
             border-radius: 6px !important;
             transition: all 0.3s ease;
+            width: auto !important;
+            padding: 0.5rem 1.5rem !important;
         }
         .stDownloadButton > button:hover {
             transform: translateY(-2px);
@@ -38,7 +43,7 @@ def inject_custom_css():
 inject_custom_css()
 
 # ==========================================
-# 2. HÀM TOÁN HỌC & XUẤT PDF AN TOÀN
+# 2. HÀM TOÁN HỌC & XUẤT PDF UNICODE
 # ==========================================
 def calculate_stats(data_array):
     q1 = np.percentile(data_array, 25)
@@ -66,60 +71,77 @@ def calculate_stats(data_array):
         "outliers": outliers.tolist()
     }
 
-def remove_accents(input_str):
-    """Hàm tẩy dấu Tiếng Việt tuyệt đối để chống lỗi FPDF"""
-    s1 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨĩŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴỵỶỷỸỹ'
-    s0 = u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuUuYyYyYyYy'
-    s = ''
-    for c in str(input_str):
-        if c in s1:
-            s += s0[s1.index(c)]
-        else:
-            s += c
-    return s
+def download_font_if_not_exists(font_name, url):
+    if not os.path.exists(font_name):
+        try:
+            urllib.request.urlretrieve(url, font_name)
+        except:
+            return False
+    return True
 
 def create_pdf_report(title, datasets_info):
     pdf = FPDF()
     pdf.add_page()
     
-    pdf.set_font("Arial", style="B", size=16)
-    pdf.set_text_color(0, 122, 255) 
-    pdf.cell(0, 10, txt=remove_accents("ED-ODYSSEY ANALYTICS ENGINE"), ln=True, align="C")
+    # --- TỰ ĐỘNG TẢI FONT TIẾNG VIỆT (ROBOTO) ---
+    font_regular_url = "https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Regular.ttf"
+    font_bold_url = "https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Bold.ttf"
+    font_italic_url = "https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Italic.ttf"
     
-    pdf.set_font("Arial", style="B", size=14)
+    font_regular = "Roboto-Regular.ttf"
+    font_bold = "Roboto-Bold.ttf"
+    font_italic = "Roboto-Italic.ttf"
+    
+    # Nhúng font vào PDF
+    if download_font_if_not_exists(font_regular, font_regular_url):
+        pdf.add_font("Roboto", "", font_regular)
+    if download_font_if_not_exists(font_bold, font_bold_url):
+        pdf.add_font("Roboto", "B", font_bold)
+    if download_font_if_not_exists(font_italic, font_italic_url):
+        pdf.add_font("Roboto", "I", font_italic)
+    
+    # Sử dụng font đã nhúng (nếu không tải được sẽ lùi về Arial mặc định)
+    active_font = "Roboto" if os.path.exists(font_regular) else "Arial"
+
+    # --- HEADER BRANDING ---
+    pdf.set_font(active_font, "B", 16)
+    pdf.set_text_color(0, 122, 255) # Màu xanh thương hiệu
+    pdf.cell(0, 10, txt="ED-ODYSSEY ANALYTICS ENGINE", ln=True, align="C")
+    
+    pdf.set_font(active_font, "B", 14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 10, txt=remove_accents(title), ln=True, align="C")
+    pdf.cell(0, 10, txt=title, ln=True, align="C")
     
-    pdf.set_font("Arial", style="I", size=10)
+    pdf.set_font(active_font, "I", 10)
     pdf.set_text_color(128, 128, 128)
     current_time = datetime.now().strftime("%d/%m/%Y - %H:%M")
-    pdf.cell(0, 8, txt=remove_accents(f"Ngày xuất báo cáo: {current_time}"), ln=True, align="C")
+    pdf.cell(0, 8, txt=f"Ngày xuất báo cáo: {current_time}", ln=True, align="C")
     
-    pdf.line(10, 42, 200, 42)
+    pdf.line(10, 42, 200, 42) 
     pdf.ln(10)
     
+    # --- NỘI DUNG THỐNG KÊ (HỖ TRỢ CÓ DẤU) ---
     pdf.set_text_color(0, 0, 0)
     for data_name, stats in datasets_info.items():
-        pdf.set_font("Arial", style="B", size=12)
-        pdf.cell(0, 8, txt=remove_accents(f"--- Nhóm dữ liệu: {data_name} ---"), ln=True)
-        pdf.set_font("Arial", style="", size=11)
+        pdf.set_font(active_font, "B", 12)
+        pdf.cell(0, 8, txt=f"--- Nhóm dữ liệu: {data_name} ---", ln=True)
+        pdf.set_font(active_font, "", 11)
         
         mode_str = ", ".join(map(lambda x: f"{x:g}", stats['mode']))
         outliers_str = str(stats['outliers']) if stats['outliers'] else "Không có"
         
-        pdf.cell(0, 7, txt=remove_accents(f"Trung bình (Mean): {stats['mean']:.2f}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Trung vị (Median): {stats['median']:.2f}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Yếu vị (Mode): {mode_str}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Phương sai (Variance): {stats['var']:.2f}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Độ lệch chuẩn (Std Dev): {stats['std']:.2f}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Khoảng giá trị (Range): {stats['range']:.2f}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Tứ phân vị Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Khoảng biến thiên (IQR): {stats['iqr']:.2f}"), ln=True)
-        pdf.cell(0, 7, txt=remove_accents(f"Điểm dị biệt (Outliers): {outliers_str}"), ln=True)
+        pdf.cell(0, 7, txt=f"Trung bình (Mean): {stats['mean']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Trung vị (Median): {stats['median']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Yếu vị (Mode): {mode_str}", ln=True)
+        pdf.cell(0, 7, txt=f"Phương sai (Variance): {stats['var']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Độ lệch chuẩn (Std Dev): {stats['std']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Khoảng giá trị (Range): {stats['range']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Tứ phân vị Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Khoảng biến thiên (IQR): {stats['iqr']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Điểm dị biệt (Outliers): {outliers_str}", ln=True)
         pdf.ln(5)
 
-    # Đảm bảo mã hóa an toàn 100% cho FPDF
-    return bytes(pdf.output(dest='S').encode('latin-1'))
+    return bytes(pdf.output())
 
 # ==========================================
 # 3. GIAO DIỆN CHÍNH
@@ -129,23 +151,14 @@ st.markdown("Hệ thống trực quan hóa và phân tích dữ liệu đa chi�
 
 tab1, tab2 = st.tabs(["🔬 Phân tích Đơn nhóm", "⚖️ So sánh (A/B Analysis)"])
 
-# ------------------------------------------
-# TAB 1: PHÂN TÍCH ĐƠN NHÓM
-# ------------------------------------------
+# --- TAB 1 ---
 with tab1:
     col1_input, col2_display = st.columns([1.2, 2.8])
     with col1_input:
         with st.container(border=True):
-            uploaded_file = st.file_uploader("Tải lên file CSV (1 cột dữ liệu):", type=["csv"], key="file_single")
-            default_val = "12, 15, 14, 16, 18, 21, 23, 50, 11, 14, 15, 12"
-            if uploaded_file is not None:
-                try:
-                    df_upload = pd.read_csv(uploaded_file)
-                    default_val = ", ".join(df_upload.iloc[:, 0].dropna().astype(str).tolist())
-                except:
-                    st.error("Lỗi file CSV.")
-            raw_single = st.text_area("Nhập dãy số:", value=default_val, height=150, key="in_single")
-        plot_type = st.radio("Loại biểu đồ:", ["Box Plot", "Histogram"], key="rad_plot")
+            uploaded_file = st.file_uploader("Tải lên CSV:", type=["csv"], key="file_1")
+            raw_single = st.text_area("Nhập dãy số:", value="12, 15, 14, 16, 18, 21, 23, 50, 11, 14, 15, 12", height=150)
+            plot_type = st.radio("Loại biểu đồ:", ["Box Plot", "Histogram"], key="p1")
 
     with col2_display:
         try:
@@ -153,79 +166,52 @@ with tab1:
             data_single = np.array([float(x) for x in data_str_list if x])
             if len(data_single) > 0:
                 stats = calculate_stats(data_single)
-                
                 with st.container(border=True):
                     m1, m2, m3, m4 = st.columns(4)
                     m1.metric("Trung bình", f"{stats['mean']:.2f}")
                     m2.metric("Trung vị", f"{stats['median']:.2f}")
                     m3.metric("Yếu vị (Mode)", f"{', '.join(map(lambda x: f'{x:g}', stats['mode']))}")
                     m4.metric("Khoảng GT (Range)", f"{stats['range']:.2f}")
-                    st.divider()
-                    m5, m6, m7 = st.columns(3)
-                    m5.metric("Phương sai", f"{stats['var']:.2f}")
-                    m6.metric("Độ lệch chuẩn", f"{stats['std']:.2f}")
-                    m7.metric("Khoảng IQR", f"{stats['iqr']:.2f}")
-
+                
                 df_single = pd.DataFrame(data_single, columns=["Value"])
-                if plot_type == "Box Plot":
-                    fig = px.box(df_single, y="Value", points="all", title="Biểu đồ hộp & Outliers", color_discrete_sequence=["#007AFF"])
-                else:
-                    fig = px.histogram(df_single, x="Value", marginal="box", nbins=15, title="Phân phối tần suất", color_discrete_sequence=["#007AFF"])
-                fig.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
+                fig = px.box(df_single, y="Value", points="all", title="Biểu đồ hộp", color_discrete_sequence=["#007AFF"]) if plot_type == "Box Plot" else px.histogram(df_single, x="Value", marginal="box", title="Phân phối", color_discrete_sequence=["#007AFF"])
                 st.plotly_chart(fig, use_container_width=True)
                 
-                try:
-                    pdf_bytes = create_pdf_report("BÁO CÁO PHÂN TÍCH ĐƠN NHÓM", {"Dataset 1": stats})
-                    st.download_button("📥 Tải Báo Cáo PDF", data=pdf_bytes, file_name="ed_odyssey_single.pdf", mime="application/pdf", type="primary")
-                except Exception as e:
-                    st.error(f"Lỗi tạo PDF: {e}")
-        except Exception:
-            st.warning("Dữ liệu không hợp lệ.")
+                pdf_bytes = create_pdf_report("BÁO CÁO PHÂN TÍCH ĐƠN NHÓM", {"Dữ liệu 1": stats})
+                st.download_button("📥 Tải Báo Cáo PDF", data=pdf_bytes, file_name="ed_odyssey_single.pdf", mime="application/pdf", type="primary")
+        except: st.warning("Dữ liệu lỗi.")
 
-# ------------------------------------------
-# TAB 2: SO SÁNH (A/B ANALYSIS)
-# ------------------------------------------
+# --- TAB 2 ---
 with tab2:
     col1_input, col2_display = st.columns([1.2, 2.8])
     with col1_input:
         with st.container(border=True):
-            st.markdown("##### Nhóm A")
-            raw_group_a = st.text_area("Dữ liệu Nhóm A:", value="5, 7, 8, 5, 6, 9, 7, 5", height=100, key="in_a")
-            st.markdown("##### Nhóm B")
-            raw_group_b = st.text_area("Dữ liệu Nhóm B:", value="3, 4, 12, 14, 5, 6, 8, 9", height=100, key="in_b")
+            raw_a = st.text_area("Nhóm A:", value="5, 7, 8, 5, 6, 9, 7, 5", height=100)
+            raw_b = st.text_area("Nhóm B:", value="3, 4, 12, 14, 5, 6, 8, 9", height=100)
 
     with col2_display:
         try:
-            list_a = [x.strip() for x in raw_group_a.replace("\n", ",").split(",") if x.strip()]
-            list_b = [x.strip() for x in raw_group_b.replace("\n", ",").split(",") if x.strip()]
+            list_a = [float(x.strip()) for x in raw_a.replace("\n", ",").split(",") if x.strip()]
+            list_b = [float(x.strip()) for x in raw_b.replace("\n", ",").split(",") if x.strip()]
             
-            if len(list_a) > 0 and len(list_b) > 0:
-                stats_a = calculate_stats(np.array([float(x) for x in list_a]))
-                stats_b = calculate_stats(np.array([float(x) for x in list_b]))
-                
-                with st.container(border=True):
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Trung bình (A)", f"{stats_a['mean']:.2f}", delta=f"{(stats_a['mean'] - stats_b['mean']):.2f} so với B", delta_color="inverse")
-                    c2.metric("Trung vị (A)", f"{stats_a['median']:.2f}", delta=f"{(stats_a['median'] - stats_b['median']):.2f} so với B", delta_color="inverse")
-                    c3.metric("Phương sai (A)", f"{stats_a['var']:.2f}", delta=f"{(stats_a['var'] - stats_b['var']):.2f} so với B", delta_color="inverse")
-                    c4.metric("Độ lệch chuẩn (A)", f"{stats_a['std']:.2f}", delta=f"{(stats_a['std'] - stats_b['std']):.2f} so với B", delta_color="inverse")
+            stats_a = calculate_stats(np.array(list_a))
+            stats_b = calculate_stats(np.array(list_b))
+            
+            with st.container(border=True):
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("TB (A)", f"{stats_a['mean']:.2f}", delta=f"{(stats_a['mean'] - stats_b['mean']):.2f}")
+                c2.metric("Trung vị (A)", f"{stats_a['median']:.2f}", delta=f"{(stats_a['median'] - stats_b['median']):.2f}")
+                c3.metric("IQR (A)", f"{stats_a['iqr']:.2f}", delta=f"{(stats_a['iqr'] - stats_b['iqr']):.2f}")
+                c4.metric("Độ lệch (A)", f"{stats_a['std']:.2f}", delta=f"{(stats_a['std'] - stats_b['std']):.2f}")
 
-                df_a = pd.DataFrame({"Value": [float(x) for x in list_a], "Group": "Nhóm A"})
-                df_b = pd.DataFrame({"Value": [float(x) for x in list_b], "Group": "Nhóm B"})
-                df_compare = pd.concat([df_a, df_b])
-                
-                fig_compare = px.box(df_compare, x="Group", y="Value", color="Group", points="all",
-                                     color_discrete_sequence=["#007AFF", "#FF5E5E"], title="So sánh phân phối & Mức độ phân tán (Box Plot)")
-                fig_compare.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
-                st.plotly_chart(fig_compare, use_container_width=True)
-                
-                try:
-                    pdf_bytes_compare = create_pdf_report("BÁO CÁO SO SÁNH (A/B ANALYSIS)", {"Nhóm A": stats_a, "Nhóm B": stats_b})
-                    st.download_button("📥 Tải Báo Cáo So Sánh", data=pdf_bytes_compare, file_name="ed_odyssey_compare.pdf", mime="application/pdf", type="primary")
-                except Exception as e:
-                    st.error(f"Lỗi tạo PDF: {e}")
-        except Exception:
-            st.warning("Dữ liệu không hợp lệ.")
+            df_a = pd.DataFrame({"Value": list_a, "Group": "Nhóm A"})
+            df_b = pd.DataFrame({"Value": list_b, "Group": "Nhóm B"})
+            fig_compare = px.box(pd.concat([df_a, df_b]), x="Group", y="Value", color="Group", title="So sánh nhóm", color_discrete_sequence=["#007AFF", "#FF5E5E"])
+            st.plotly_chart(fig_compare, use_container_width=True)
+            
+            pdf_bytes_comp = create_pdf_report("BÁO CÁO SO SÁNH (A/B ANALYSIS)", {"Nhóm A": stats_a, "Nhóm B": stats_b})
+            st.download_button("📥 Tải Báo Cáo So Sánh", data=pdf_bytes_comp, file_name="ed_odyssey_compare.pdf", mime="application/pdf", type="primary")
+        except: st.warning("Dữ liệu lỗi.")
 
 st.markdown("---")
-st.caption("Trực quan hóa và hệ thống hóa bởi ED-ODYSSEY Analytics Engine.")
+st.caption("ED-ODYSSEY Analytics Engine - Chuyên sâu Thống kê & Trực quan hóa.")
