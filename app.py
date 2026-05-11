@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from fpdf import FPDF
 from datetime import datetime
+import os
 
 # ==========================================
 # 1. THIẾT LẬP TRANG & GIAO DIỆN CƠ BẢN (CSS)
@@ -76,46 +77,56 @@ def create_pdf_report(title, datasets_info):
     pdf = FPDF()
     pdf.add_page()
     
+    # --- KIỂM TRA & LOAD FONT TIẾNG VIỆT ---
+    font_path = "arial.ttf"
+    if os.path.exists(font_path):
+        pdf.add_font("ArialVN", "", font_path)
+        font_family = "ArialVN"
+    else:
+        # Nếu quên upload font, hệ thống sẽ trả về font gốc (bị lỗi dấu nhưng không sập web)
+        font_family = "Arial" 
+
     # --- HEADER BRANDING ---
-    pdf.set_font("Arial", "B", 16)
+    pdf.set_font(font_family, style="B", size=16)
     pdf.set_text_color(0, 122, 255) # Màu xanh dương
     pdf.cell(0, 10, txt="ED-ODYSSEY ANALYTICS ENGINE", ln=True, align="C")
     
-    pdf.set_font("Arial", "B", 14)
+    pdf.set_font(font_family, style="B", size=14)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, txt=title, ln=True, align="C")
     
     # Thời gian xuất báo cáo
-    pdf.set_font("Arial", "I", 10)
+    pdf.set_font(font_family, style="I", size=10)
     pdf.set_text_color(128, 128, 128)
     current_time = datetime.now().strftime("%d/%m/%Y - %H:%M")
-    pdf.cell(0, 8, txt=f"Ngay xuat bao cao: {current_time}", ln=True, align="C")
+    pdf.cell(0, 8, txt=f"Ngày xuất báo cáo: {current_time}", ln=True, align="C")
     
     pdf.line(10, 42, 200, 42) # Đường gạch ngang
     pdf.ln(10)
     
-    # --- NỘI DUNG THỐNG KÊ ---
+    # --- NỘI DUNG THỐNG KÊ CÓ DẤU ---
     pdf.set_text_color(0, 0, 0)
     for data_name, stats in datasets_info.items():
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, txt=f"--- Nhom du lieu: {data_name} ---", ln=True)
-        pdf.set_font("Arial", "", 11)
+        pdf.set_font(font_family, style="B", size=12)
+        pdf.cell(0, 8, txt=f"--- Nhóm dữ liệu: {data_name} ---", ln=True)
+        pdf.set_font(font_family, style="", size=11)
         
         mode_str = ", ".join(map(lambda x: f"{x:g}", stats['mode']))
-        outliers_str = str(stats['outliers']) if stats['outliers'] else "Khong co"
+        outliers_str = str(stats['outliers']) if stats['outliers'] else "Không có"
         
-        pdf.cell(0, 7, txt=f"Trung binh (Mean): {stats['mean']:.2f}", ln=True)
-        pdf.cell(0, 7, txt=f"Trung vi (Median): {stats['median']:.2f}", ln=True)
-        pdf.cell(0, 7, txt=f"Yeu vi (Mode): {mode_str}", ln=True)
-        pdf.cell(0, 7, txt=f"Phuong sai (Variance): {stats['var']:.2f}", ln=True)
-        pdf.cell(0, 7, txt=f"Do lech chuan (Std Dev): {stats['std']:.2f}", ln=True)
-        pdf.cell(0, 7, txt=f"Khoang gia tri (Range): {stats['range']:.2f}", ln=True)
-        pdf.cell(0, 7, txt=f"Tu phan vi Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}", ln=True)
-        pdf.cell(0, 7, txt=f"Khoang bien thien (IQR): {stats['iqr']:.2f}", ln=True)
-        pdf.cell(0, 7, txt=f"Diem di biet (Outliers): {outliers_str}", ln=True)
+        pdf.cell(0, 7, txt=f"Trung bình (Mean): {stats['mean']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Trung vị (Median): {stats['median']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Yếu vị (Mode): {mode_str}", ln=True)
+        pdf.cell(0, 7, txt=f"Phương sai (Variance): {stats['var']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Độ lệch chuẩn (Std Dev): {stats['std']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Khoảng giá trị (Range): {stats['range']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Tứ phân vị Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Khoảng biến thiên (IQR): {stats['iqr']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Điểm dị biệt (Outliers): {outliers_str}", ln=True)
         pdf.ln(5)
 
-    return bytes(pdf.output(dest='S').encode('latin-1'))
+    # Dùng bytes() trực tiếp vì fpdf2 trả về định dạng an toàn cho Streamlit
+    return bytes(pdf.output())
 
 # ==========================================
 # 3. GIAO DIỆN CHÍNH
@@ -197,7 +208,7 @@ with tab1:
                     fig.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig, use_container_width=True, key="chart_single")
                 
-                pdf_bytes = create_pdf_report("BAO CAO PHAN TICH DON NHOM", {"Dataset 1": stats})
+                pdf_bytes = create_pdf_report("BÁO CÁO PHÂN TÍCH ĐƠN NHÓM", {"Dataset 1": stats})
                 st.download_button("📥 Tải Báo Cáo PDF", data=pdf_bytes, file_name="ed_odyssey_single_report.pdf", 
                                    mime="application/pdf", key="dl_single", type="primary")
         except Exception as e:
@@ -263,8 +274,8 @@ with tab2:
                     fig_compare.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig_compare, use_container_width=True, key="chart_compare")
                 
-                pdf_bytes_compare = create_pdf_report("BAO CAO SO SANH (A/B ANALYSIS)", 
-                                                      {"Nhom A": stats_a, "Nhom B": stats_b})
+                pdf_bytes_compare = create_pdf_report("BÁO CÁO SO SÁNH (A/B ANALYSIS)", 
+                                                      {"Nhóm A": stats_a, "Nhóm B": stats_b})
                 st.download_button("📥 Tải Báo Cáo So Sánh", data=pdf_bytes_compare, 
                                    file_name="ed_odyssey_compare_report.pdf", mime="application/pdf", key="dl_compare", type="primary")
         except Exception as e:
