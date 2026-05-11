@@ -4,6 +4,9 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from fpdf import FPDF
+import tempfile
+import os
+from datetime import datetime
 
 # ==========================================
 # 1. THIẾT LẬP TRANG & GIAO DIỆN CƠ BẢN (CSS)
@@ -13,7 +16,6 @@ st.set_page_config(page_title="Statistical Insights Lab", page_icon="📊", layo
 def inject_custom_css():
     st.markdown("""
         <style>
-        /* CSS tuỳ chỉnh cho giao diện */
         .stApp {
             background-color: #F4F7FA;
         }
@@ -30,26 +32,13 @@ def inject_custom_css():
             border: 1px solid #EAEAEA !important;
             padding: 0.5rem;
         }
-        /* Nút tải PDF nổi bật hơn */
         .stDownloadButton > button {
-            background-color: #007AFF !important; 
-            color: #FFFFFF !important;
-            border-radius: 8px !important;
-            border: 2px solid #0056b3 !important;
-            padding: 10px 0px !important;
-            width: 100%;
+            border-radius: 6px !important;
             transition: all 0.3s ease;
         }
         .stDownloadButton > button:hover {
-            background-color: #0056b3 !important; 
-            box-shadow: 0 6px 15px rgba(0, 122, 255, 0.4) !important;
             transform: translateY(-2px);
-            color: #FFFFFF !important;
-        }
-        /* Làm to chữ bên trong nút */
-        .stDownloadButton > button p {
-            font-size: 1.1rem !important; 
-            font-weight: bold !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -60,7 +49,6 @@ inject_custom_css()
 # 2. HÀM TOÁN HỌC & XUẤT PDF
 # ==========================================
 def calculate_stats(data_array):
-    """Tính toán tất cả các chỉ số thống kê cơ bản."""
     q1 = np.percentile(data_array, 25)
     q3 = np.percentile(data_array, 75)
     iqr = q3 - q1
@@ -68,7 +56,6 @@ def calculate_stats(data_array):
     upper_bound = q3 + 1.5 * iqr
     outliers = data_array[(data_array < lower_bound) | (data_array > upper_bound)]
     
-    # Các chỉ số mới
     data_range = np.max(data_array) - np.min(data_array)
     std_dev = np.std(data_array)
     s = pd.Series(data_array)
@@ -87,39 +74,70 @@ def calculate_stats(data_array):
         "outliers": outliers.tolist()
     }
 
-def create_pdf_report(title, datasets_info):
-    """Tạo file PDF báo cáo. Trả về định dạng bytes."""
+def create_pdf_report(title, datasets_info, fig=None):
     pdf = FPDF()
     pdf.add_page()
     
-    # Tiêu đề
+    # --- HEADER BRANDING ---
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, txt="THONG KE CHI TIET - ED-ODYSSEY", ln=True, align="C")
-    pdf.set_font("Arial", "I", 12)
+    pdf.set_text_color(0, 122, 255) # Màu xanh dương ED-ODYSSEY
+    pdf.cell(0, 10, txt="ED-ODYSSEY ANALYTICS ENGINE", ln=True, align="C")
+    
+    pdf.set_font("Arial", "B", 14)
+    pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, txt=title, ln=True, align="C")
+    
+    # Thời gian xuất báo cáo
+    pdf.set_font("Arial", "I", 10)
+    pdf.set_text_color(128, 128, 128)
+    current_time = datetime.now().strftime("%d/%m/%Y - %H:%M")
+    pdf.cell(0, 8, txt=f"Ngay xuat bao cao: {current_time}", ln=True, align="C")
+    
+    pdf.line(10, 42, 200, 42) # Đường gạch ngang
     pdf.ln(10)
     
-    # Nội dung
-    pdf.set_font("Arial", "", 12)
+    # --- NỘI DUNG THỐNG KÊ ---
+    pdf.set_text_color(0, 0, 0)
     for data_name, stats in datasets_info.items():
         pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, txt=f"--- Nhom du lieu: {data_name} ---", ln=True)
-        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 8, txt=f"--- Nhom du lieu: {data_name} ---", ln=True)
+        pdf.set_font("Arial", "", 11)
         
         mode_str = ", ".join(map(lambda x: f"{x:g}", stats['mode']))
-        
-        pdf.cell(0, 8, txt=f"Trung binh (Mean): {stats['mean']:.2f}", ln=True)
-        pdf.cell(0, 8, txt=f"Trung vi (Median): {stats['median']:.2f}", ln=True)
-        pdf.cell(0, 8, txt=f"Yeu vi (Mode): {mode_str}", ln=True)
-        pdf.cell(0, 8, txt=f"Phuong sai (Variance): {stats['var']:.2f}", ln=True)
-        pdf.cell(0, 8, txt=f"Do lech chuan (Std Dev): {stats['std']:.2f}", ln=True)
-        pdf.cell(0, 8, txt=f"Khoang gia tri (Range): {stats['range']:.2f}", ln=True)
-        pdf.cell(0, 8, txt=f"Tu phan vi Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}", ln=True)
-        pdf.cell(0, 8, txt=f"Khoang bien thien (IQR): {stats['iqr']:.2f}", ln=True)
-        
         outliers_str = str(stats['outliers']) if stats['outliers'] else "Khong co"
-        pdf.cell(0, 8, txt=f"Diem di biet (Outliers): {outliers_str}", ln=True)
+        
+        pdf.cell(0, 7, txt=f"Trung binh (Mean): {stats['mean']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Trung vi (Median): {stats['median']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Yeu vi (Mode): {mode_str}", ln=True)
+        pdf.cell(0, 7, txt=f"Phuong sai (Variance): {stats['var']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Do lech chuan (Std Dev): {stats['std']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Khoang gia tri (Range): {stats['range']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Tu phan vi Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Khoang bien thien (IQR): {stats['iqr']:.2f}", ln=True)
+        pdf.cell(0, 7, txt=f"Diem di biet (Outliers): {outliers_str}", ln=True)
         pdf.ln(5)
+
+    # --- CHÈN BIỂU ĐỒ ---
+    if fig is not None:
+        try:
+            # Lưu biểu đồ thành file ảnh tạm thời
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+                fig.write_image(tmpfile.name, engine="kaleido", width=800, height=400)
+                tmpfile_path = tmpfile.name
+            
+            # Sang trang mới cho biểu đồ để không bị cắt ngang
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, txt="Bieu do truc quan (Visualizations):", ln=True)
+            # Chèn ảnh vào PDF
+            pdf.image(tmpfile_path, x=10, w=190)
+            
+            # Xóa file ảnh tạm sau khi chèn xong
+            os.remove(tmpfile_path)
+        except Exception as e:
+            pdf.set_text_color(255, 0, 0)
+            pdf.cell(0, 10, txt="(Loi: Khong the tao anh bieu do. Vui long kiem tra thu vien 'kaleido')", ln=True)
+            pdf.set_text_color(0, 0, 0)
         
     return bytes(pdf.output(dest='S').encode('latin-1'))
 
@@ -139,7 +157,6 @@ with tab1:
     
     with col1_input:
         with st.container(border=True):
-            # Tính năng Upload file
             uploaded_file = st.file_uploader("Tải lên file CSV (1 cột dữ liệu):", type=["csv"], key="file_single")
             
             default_val = "12, 15, 14, 16, 18, 21, 23, 50, 11, 14, 15, 12"
@@ -170,7 +187,6 @@ with tab1:
             if len(data_single) > 0:
                 stats = calculate_stats(data_single)
                 
-                # Hiển thị metrics thành 2 hàng
                 with single_metrics_area.container(border=True):
                     st.markdown("**Các giá trị cốt lõi:**")
                     m1, m2, m3, m4 = st.columns(4)
@@ -193,7 +209,6 @@ with tab1:
                     m7.metric("Khoảng IQR", f"{stats['iqr']:.2f}")
                     m7.latex(r"IQR = Q_3 - Q_1")
 
-                # Vẽ biểu đồ
                 with single_chart_area.container():
                     df_single = pd.DataFrame(data_single, columns=["Value"])
                     if plot_type == "Box Plot":
@@ -206,10 +221,10 @@ with tab1:
                     fig.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig, use_container_width=True, key="chart_single")
                 
-                # Tải PDF - Nút đã được style lại
-                pdf_bytes = create_pdf_report("Phan tich don nhom", {"Dataset 1": stats})
-                st.download_button("📥 TẢI BÁO CÁO PDF ĐƠN NHÓM", data=pdf_bytes, file_name="ed_odyssey_single_report.pdf", 
-                                   mime="application/pdf", key="dl_single", type="primary", use_container_width=True)
+                # Truyền fig vào hàm tạo PDF
+                pdf_bytes = create_pdf_report("BAO CAO PHAN TICH DON NHOM", {"Dataset 1": stats}, fig)
+                st.download_button("📥 Tải Báo Cáo PDF", data=pdf_bytes, file_name="ed_odyssey_single_report.pdf", 
+                                   mime="application/pdf", key="dl_single", type="primary")
         except Exception as e:
             single_chart_area.caption("Dữ liệu không hợp lệ. Vui lòng chỉ nhập các số.")
 
@@ -249,7 +264,6 @@ with tab2:
                 stats_a = calculate_stats(np.array([float(x) for x in list_a]))
                 stats_b = calculate_stats(np.array([float(x) for x in list_b]))
                 
-                # Hiển thị metrics so sánh
                 with compare_metrics_area.container(border=True):
                     st.markdown("**So sánh các giá trị cốt lõi (Nhóm A làm gốc):**")
                     c1, c2, c3, c4 = st.columns(4)
@@ -263,7 +277,6 @@ with tab2:
                     c4.metric("Độ lệch chuẩn (A)", f"{stats_a['std']:.2f}", 
                               delta=f"{(stats_a['std'] - stats_b['std']):.2f} so với B", delta_color="inverse")
 
-                # Vẽ biểu đồ
                 with compare_chart_area.container():
                     df_a = pd.DataFrame({"Value": [float(x) for x in list_a], "Group": "Nhóm A"})
                     df_b = pd.DataFrame({"Value": [float(x) for x in list_b], "Group": "Nhóm B"})
@@ -275,11 +288,11 @@ with tab2:
                     fig_compare.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig_compare, use_container_width=True, key="chart_compare")
                 
-                # Tải PDF - Nút đã được style lại
-                pdf_bytes_compare = create_pdf_report("Phan tich so sanh (A/B Analysis)", 
-                                                      {"Nhom A": stats_a, "Nhom B": stats_b})
-                st.download_button("📥 TẢI BÁO CÁO SO SÁNH (PDF)", data=pdf_bytes_compare, 
-                                   file_name="ed_odyssey_compare_report.pdf", mime="application/pdf", key="dl_compare", type="primary", use_container_width=True)
+                # Truyền fig_compare vào hàm tạo PDF
+                pdf_bytes_compare = create_pdf_report("BAO CAO SO SANH (A/B ANALYSIS)", 
+                                                      {"Nhom A": stats_a, "Nhom B": stats_b}, fig_compare)
+                st.download_button("📥 Tải Báo Cáo So Sánh", data=pdf_bytes_compare, 
+                                   file_name="ed_odyssey_compare_report.pdf", mime="application/pdf", key="dl_compare", type="primary")
         except Exception as e:
             compare_chart_area.caption("Dữ liệu không hợp lệ. Vui lòng kiểm tra lại định dạng dữ liệu đầu vào.")
 
