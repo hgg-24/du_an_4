@@ -5,9 +5,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from fpdf import FPDF
 from datetime import datetime
-import os
-import urllib.request
-import unicodedata
 
 # ==========================================
 # 1. THIẾT LẬP TRANG & GIAO DIỆN CƠ BẢN (CSS)
@@ -41,7 +38,7 @@ def inject_custom_css():
 inject_custom_css()
 
 # ==========================================
-# 2. HÀM TOÁN HỌC & XUẤT PDF
+# 2. HÀM TOÁN HỌC & XUẤT PDF AN TOÀN
 # ==========================================
 def calculate_stats(data_array):
     q1 = np.percentile(data_array, 25)
@@ -69,75 +66,60 @@ def calculate_stats(data_array):
         "outliers": outliers.tolist()
     }
 
-def safe_text(text, is_fallback):
-    """Xóa dấu tiếng Việt nếu hệ thống đang dùng font fallback để tránh crash"""
-    if is_fallback:
-        nfkd = unicodedata.normalize('NFKD', str(text))
-        return u"".join([c for c in nfkd if not unicodedata.combining(c)])
-    return str(text)
+def remove_accents(input_str):
+    """Hàm tẩy dấu Tiếng Việt tuyệt đối để chống lỗi FPDF"""
+    s1 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨĩŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴỵỶỷỸỹ'
+    s0 = u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuUuYyYyYyYy'
+    s = ''
+    for c in str(input_str):
+        if c in s1:
+            s += s0[s1.index(c)]
+        else:
+            s += c
+    return s
 
 def create_pdf_report(title, datasets_info):
     pdf = FPDF()
     pdf.add_page()
     
-    # --- TỰ ĐỘNG TẢI FONT GOOGLE (ROBOTO) ---
-    font_path = "Roboto-Regular.ttf"
-    is_fallback = False
-    
-    if not os.path.exists(font_path):
-        try:
-            # Tải trực tiếp font từ repo Google Fonts
-            url = "https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Regular.ttf"
-            urllib.request.urlretrieve(url, font_path)
-        except Exception:
-            pass # Lỗi mạng, bỏ qua
-
-    if os.path.exists(font_path):
-        pdf.add_font("Roboto", "", font_path)
-        font_family = "Roboto"
-    else:
-        font_family = "Arial" 
-        is_fallback = True # Bật chế độ xóa dấu tự động an toàn
-
-    # --- HEADER BRANDING ---
-    pdf.set_font(font_family, style="B", size=16)
+    pdf.set_font("Arial", style="B", size=16)
     pdf.set_text_color(0, 122, 255) 
-    pdf.cell(0, 10, txt=safe_text("ED-ODYSSEY ANALYTICS ENGINE", is_fallback), ln=True, align="C")
+    pdf.cell(0, 10, txt=remove_accents("ED-ODYSSEY ANALYTICS ENGINE"), ln=True, align="C")
     
-    pdf.set_font(font_family, style="B", size=14)
+    pdf.set_font("Arial", style="B", size=14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 10, txt=safe_text(title, is_fallback), ln=True, align="C")
+    pdf.cell(0, 10, txt=remove_accents(title), ln=True, align="C")
     
-    pdf.set_font(font_family, style="I", size=10)
+    pdf.set_font("Arial", style="I", size=10)
     pdf.set_text_color(128, 128, 128)
     current_time = datetime.now().strftime("%d/%m/%Y - %H:%M")
-    pdf.cell(0, 8, txt=safe_text(f"Ngày xuất báo cáo: {current_time}", is_fallback), ln=True, align="C")
+    pdf.cell(0, 8, txt=remove_accents(f"Ngày xuất báo cáo: {current_time}"), ln=True, align="C")
     
     pdf.line(10, 42, 200, 42)
     pdf.ln(10)
     
-    # --- NỘI DUNG THỐNG KÊ ---
     pdf.set_text_color(0, 0, 0)
     for data_name, stats in datasets_info.items():
-        pdf.set_font(font_family, style="B", size=12)
-        pdf.cell(0, 8, txt=safe_text(f"--- Nhóm dữ liệu: {data_name} ---", is_fallback), ln=True)
-        pdf.set_font(font_family, style="", size=11)
+        pdf.set_font("Arial", style="B", size=12)
+        pdf.cell(0, 8, txt=remove_accents(f"--- Nhóm dữ liệu: {data_name} ---"), ln=True)
+        pdf.set_font("Arial", style="", size=11)
         
         mode_str = ", ".join(map(lambda x: f"{x:g}", stats['mode']))
         outliers_str = str(stats['outliers']) if stats['outliers'] else "Không có"
         
-        pdf.cell(0, 7, txt=safe_text(f"Trung bình (Mean): {stats['mean']:.2f}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Trung vị (Median): {stats['median']:.2f}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Yếu vị (Mode): {mode_str}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Phương sai (Variance): {stats['var']:.2f}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Độ lệch chuẩn (Std Dev): {stats['std']:.2f}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Khoảng giá trị (Range): {stats['range']:.2f}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Tứ phân vị Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Khoảng biến thiên (IQR): {stats['iqr']:.2f}", is_fallback), ln=True)
-        pdf.cell(0, 7, txt=safe_text(f"Điểm dị biệt (Outliers): {outliers_str}", is_fallback), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Trung bình (Mean): {stats['mean']:.2f}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Trung vị (Median): {stats['median']:.2f}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Yếu vị (Mode): {mode_str}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Phương sai (Variance): {stats['var']:.2f}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Độ lệch chuẩn (Std Dev): {stats['std']:.2f}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Khoảng giá trị (Range): {stats['range']:.2f}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Tứ phân vị Q1: {stats['q1']:.2f} | Q3: {stats['q3']:.2f}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Khoảng biến thiên (IQR): {stats['iqr']:.2f}"), ln=True)
+        pdf.cell(0, 7, txt=remove_accents(f"Điểm dị biệt (Outliers): {outliers_str}"), ln=True)
         pdf.ln(5)
 
-    return bytes(pdf.output())
+    # Đảm bảo mã hóa an toàn 100% cho FPDF
+    return bytes(pdf.output(dest='S').encode('latin-1'))
 
 # ==========================================
 # 3. GIAO DIỆN CHÍNH
