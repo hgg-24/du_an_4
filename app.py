@@ -30,18 +30,26 @@ def inject_custom_css():
             border: 1px solid #EAEAEA !important;
             padding: 0.5rem;
         }
-        /* Nút tải PDF */
-        .stDownloadButton button {
-            background-color: var(--primary-color) !important;
-            color: white !important;
+        /* Nút tải PDF nổi bật hơn */
+        .stDownloadButton > button {
+            background-color: #007AFF !important; 
+            color: #FFFFFF !important;
             border-radius: 8px !important;
-            border: none !important;
-            font-weight: bold !important;
+            border: 2px solid #0056b3 !important;
+            padding: 10px 0px !important;
             width: 100%;
+            transition: all 0.3s ease;
         }
-        .stDownloadButton button:hover {
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3) !important;
+        .stDownloadButton > button:hover {
+            background-color: #0056b3 !important; 
+            box-shadow: 0 6px 15px rgba(0, 122, 255, 0.4) !important;
             transform: translateY(-2px);
+            color: #FFFFFF !important;
+        }
+        /* Làm to chữ bên trong nút */
+        .stDownloadButton > button p {
+            font-size: 1.1rem !important; 
+            font-weight: bold !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -198,10 +206,10 @@ with tab1:
                     fig.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig, use_container_width=True, key="chart_single")
                 
-                # Tải PDF
+                # Tải PDF - Nút đã được style lại
                 pdf_bytes = create_pdf_report("Phan tich don nhom", {"Dataset 1": stats})
-                st.download_button("📥 Tải Báo Cáo PDF", data=pdf_bytes, file_name="ed_odyssey_single_report.pdf", 
-                                   mime="application/pdf", key="dl_single")
+                st.download_button("📥 TẢI BÁO CÁO PDF ĐƠN NHÓM", data=pdf_bytes, file_name="ed_odyssey_single_report.pdf", 
+                                   mime="application/pdf", key="dl_single", type="primary", use_container_width=True)
         except Exception as e:
             single_chart_area.caption("Dữ liệu không hợp lệ. Vui lòng chỉ nhập các số.")
 
@@ -259,24 +267,4 @@ with tab2:
                 with compare_chart_area.container():
                     df_a = pd.DataFrame({"Value": [float(x) for x in list_a], "Group": "Nhóm A"})
                     df_b = pd.DataFrame({"Value": [float(x) for x in list_b], "Group": "Nhóm B"})
-                    df_compare = pd.concat([df_a, df_b])
-                    
-                    fig_compare = px.box(df_compare, x="Group", y="Value", color="Group", points="all",
-                                         color_discrete_sequence=["#007AFF", "#FF5E5E"],
-                                         title="So sánh phân phối & Mức độ phân tán (Box Plot)")
-                    fig_compare.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
-                    st.plotly_chart(fig_compare, use_container_width=True, key="chart_compare")
-                
-                # Tải PDF
-                pdf_bytes_compare = create_pdf_report("Phan tich so sanh (A/B Analysis)", 
-                                                      {"Nhom A": stats_a, "Nhom B": stats_b})
-                st.download_button("📥 Tải Báo Cáo So Sánh (PDF)", data=pdf_bytes_compare, 
-                                   file_name="ed_odyssey_compare_report.pdf", mime="application/pdf", key="dl_compare")
-        except Exception as e:
-            compare_chart_area.caption("Dữ liệu không hợp lệ. Vui lòng kiểm tra lại định dạng dữ liệu đầu vào.")
-
-# ==========================================
-# 4. FOOTER
-# ==========================================
-st.markdown("---")
-st.caption("Trực quan hóa và hệ thống hóa bởi ED-ODYSSEY Analytics Engine.")
+                    df_compare = pd
